@@ -1,0 +1,30 @@
+{{rubric_gen_prompt_context}}
+
+Please generate a comprehensive rubric tree for the following task.
+
+Task: {{task}}
+
+Return the rubric as a JSON structure with the following format:
+```json
+{
+    "name": "Root criterion name",
+    "description": "Detailed description of what this criterion evaluates",
+    "is_critical": true/false,
+    "children": [
+        {
+            "name": "Child criterion name",
+            "description": "Description",
+            "is_critical": true/false,
+            "children": [...] // or "scorer" for leaf nodes
+        }
+    ]
+}
+```
+
+For leaf nodes, instead of "children", include which requires one of the following formats:
+{{scorer_formats}}
+
+{{rubric_gen_generation_guidelines}}
+
+Make sure the rubric is comprehensive, follows the scoring rules described above, 
+and has appropriate critical/non-critical designations.

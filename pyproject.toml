@@ -30,6 +30,9 @@ dev = [
     "pre-commit",
 ]
 
+[project.urls]
+Repository = "https://github.com/ApGa/rubric"
+
 [tool.ruff]
 line-length = 100
 

@@ -164,7 +164,7 @@ and avoid including numerical scores in the reasoning.
                 "sub-criteria"
             )
 
-    def compute_score(self, **context) -> float:
+    def compute_score(self, **context: Any) -> float:
         """Compute the score for this node.
 
         For leaf nodes, uses the scorer. For parent nodes, computes based on children

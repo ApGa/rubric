@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from typing import Any, Dict
+from typing import Any, Callable, Dict
 
 SCORER_REGISTRY: dict[str, type[LeafScorer]] = {}
 
 
-def register(scorer_type: str):
+def register(scorer_type: str) -> Callable[[type[LeafScorer]], type[LeafScorer]]:
     """Register a scorer class.
 
     Args:
@@ -29,7 +29,7 @@ class LeafScorer(ABC):
     """Abstract base class for leaf node scorers."""
 
     @abstractmethod
-    def score(self, **context) -> tuple[float, str]:
+    def score(self, **context: Any) -> tuple[float, str]:
         """Compute score for the leaf node.
 
         Args:

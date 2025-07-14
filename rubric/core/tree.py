@@ -26,7 +26,7 @@ class RubricTree:
         if not isinstance(self.root, RubricNode):
             raise ValueError("Root must be a RubricNode instance")
 
-    def evaluate(self, include_reason: bool = False, **context) -> tuple[float, str]:
+    def evaluate(self, include_reason: bool = False, **context: Any) -> tuple[float, str]:
         """Evaluate the entire rubric tree and return the overall score.
 
         Args:

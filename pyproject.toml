@@ -14,7 +14,7 @@ license = "MIT"
 authors = [
     {name = "Apurva Gandhi", email = "apurvasgandhi@gmail.com"}
 ]
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
     "jinja2>=3.1.0",
     "openai>=1.0.0",

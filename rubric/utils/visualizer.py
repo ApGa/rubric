@@ -6,7 +6,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 from ..core.node import RubricNode
-from ..core.scorer import FunctionScorer, LLMScorer, ScriptScorer
+from ..core.scorer import FunctionScorer
 from ..core.tree import RubricTree
 
 try:
@@ -130,11 +130,10 @@ class RubricTreeVisualizer:
             margin=dict(b=60, l=20, r=20, t=60),
             annotations=[
                 dict(
-                    text='<span style="color:#C71585;">●</span> Critical   '
+                    text=                    '<span style="color:#C71585;">●</span> Critical   '
                     '<span style="color:#87CEEB;">●</span> Non-Critical<br>'
                     "<span style=\"font-family: 'Arial', sans-serif; "
-                    'font-size: 1.5em; color: #333333">◆</span> Function Scorer   '
-                    '<span style="color: #333333">●</span> LLM Scorer',
+                    'font-size: 1.5em; color: #333333">◆</span> Function Scorer',
                     align="left",
                     showarrow=False,
                     xref="paper",
@@ -349,6 +348,10 @@ class RubricTreeVisualizer:
 
             if show_scores and node.score is not None:
                 label += f"<br><i>Score: {node.score:.2f}</i>"
+                # Add reason if available
+                if node.reason:
+                    wrapped_reason = self._wrap_text(node.reason, 50)
+                    label += f"<br><span style='font-size: 10px; color: #666;'>{wrapped_reason}</span>"
 
             node_data["labels"].append(label)
 
@@ -363,10 +366,6 @@ class RubricTreeVisualizer:
             # Border color can be kept for additional info, but not in legend
             if node.scorer and isinstance(node.scorer, FunctionScorer):
                 border_color = "#F1C40F"  # Yellow for Function
-            elif node.scorer and isinstance(node.scorer, LLMScorer):
-                border_color = "#E67E22"  # Orange for LLM
-            elif node.scorer and isinstance(node.scorer, ScriptScorer):
-                border_color = "#1ABC9C"  # Green for script
             else:
                 border_color = "#2C3E50"  # Dark blue for others
 
@@ -377,10 +376,6 @@ class RubricTreeVisualizer:
             if node.scorer:
                 if isinstance(node.scorer, FunctionScorer):
                     symbol = "diamond"
-                elif isinstance(node.scorer, LLMScorer):
-                    symbol = "circle"
-                elif isinstance(node.scorer, ScriptScorer):
-                    symbol = "square"  # Or another shape if you want to distinguish
 
             node_data["symbols"].append(symbol)
 
@@ -394,18 +389,17 @@ class RubricTreeVisualizer:
             if node.scorer:
                 scorer_type = type(node.scorer).__name__
                 hover_text += f"<br>Scorer: {scorer_type}"
-                if isinstance(node.scorer, LLMScorer):
-                    prompt = self._wrap_text(node.scorer.prompt_template, 80)
-                    hover_text += f"<br><br><b>Prompt:</b><br>{prompt}"
-                elif isinstance(node.scorer, ScriptScorer):
-                    script = self._wrap_text(node.scorer.script_content, 80)
-                    hover_text += f"<br><br><b>Script:</b><br><pre>{script}</pre>"
-                elif isinstance(node.scorer, FunctionScorer):
-                    code = self._wrap_text(node.scorer.function_code, 80)
+                if isinstance(node.scorer, FunctionScorer) and hasattr(node.scorer, 'function_code'):
+                    # Safely access function_code with attribute check
+                    code = self._wrap_text(getattr(node.scorer, 'function_code', ''), 80)
                     hover_text += f"<br><br><b>Function:</b><br><pre>{code}</pre>"
 
             if show_scores and node.score is not None:
                 hover_text += f"<br><b>Score: {node.score:.2f}</b>"
+                # Add reason in hover text with better formatting
+                if node.reason:
+                    wrapped_reason = self._wrap_text(node.reason, 60)
+                    hover_text += f"<br><br><b>Reason:</b><br>{wrapped_reason}"
 
             node_data["hover_text"].append(hover_text)
 

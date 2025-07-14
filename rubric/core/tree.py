@@ -26,16 +26,21 @@ class RubricTree:
         if not isinstance(self.root, RubricNode):
             raise ValueError("Root must be a RubricNode instance")
 
-    def evaluate(self, context: Dict[str, Any]) -> float:
+    def evaluate(self, include_reason: bool = False, **context) -> tuple[float, str]:
         """Evaluate the entire rubric tree and return the overall score.
 
         Args:
+            include_reason: Whether to include the reason for the score.
             context: Context data for evaluation.
 
         Returns:
-            Overall score between 0 and 1.
+            Overall score between 0 and 1. If include_reason is True, returns a tuple of the score and the reason.
         """
-        return self.root.compute_score(context)
+        self.root.compute_score(**context)
+        if include_reason:
+            return self.root.score, self.root.reason
+        else:
+            return (self.root.score, "")
 
     def reset_scores(self) -> None:
         """Reset all scores in the tree."""
@@ -270,7 +275,7 @@ class RubricTree:
             Detailed evaluation report.
         """
         # Evaluate the tree
-        overall_score = self.evaluate(context)
+        overall_score = self.evaluate(**context)
 
         # Collect node scores
         node_scores = {}
@@ -309,7 +314,7 @@ class RubricTree:
     def visualize(
         self,
         method: str = "plotly",
-        show_scores: bool = True,
+        show_scores: bool = False,
         layout: str = "hierarchical",
         width: int = 1600,
         height: int = 1000,

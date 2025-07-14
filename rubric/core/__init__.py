@@ -1,7 +1,7 @@
 """Core rubric system components."""
 
 from .node import RubricNode
-from .scorer import LeafScorer, ScriptScorer
+from .scorer import LeafScorer, FunctionScorer
 from .tree import RubricTree
 
-__all__ = ["RubricNode", "RubricTree", "LeafScorer", "ScriptScorer"]
+__all__ = ["RubricNode", "RubricTree", "LeafScorer", "FunctionScorer"]

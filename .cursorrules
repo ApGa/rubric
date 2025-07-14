@@ -1,9 +1,0 @@
-# Cursor Rules for SWE-Playground
-
-## Type Annotations
-Use lowercase type annotations instead of typing module imports where possible.
-
-For example
-
-## Conda environment
-To run code in this repo you should activate the `rubric` conda environment.

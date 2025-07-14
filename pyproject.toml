@@ -6,7 +6,7 @@ build-backend = "hatchling.build"
 packages = ["rubric"]
 
 [project]
-name = "rubric-ai"
+name = "ai-rubric"
 version = "0.1.0"
 description = "Structured verification with LLMs."
 readme = "README.md"

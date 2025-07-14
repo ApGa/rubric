@@ -39,17 +39,17 @@ class RubricTreeGenerator:
         """
         # Prepare context for prompt
 
-
         # Generate rubric structure using LLM
         system_prompt = self.prompt_retriever.get_prompt("generate-rubric-tree-system")
-        user_prompt = self.prompt_retriever.get_prompt("generate-rubric-tree-user", 
-            task=task, 
-            rubric_gen_prompt_context=rubric_gen_prompt_context, 
+        user_prompt = self.prompt_retriever.get_prompt(
+            "generate-rubric-tree-user",
+            task=task,
+            rubric_gen_prompt_context=rubric_gen_prompt_context,
             rubric_gen_generation_guidelines=rubric_gen_generation_guidelines,
             scorer_types=scorer_types,
-            scorer_formats='\n'.join(
+            scorer_formats="\n".join(
                 SCORER_REGISTRY[scorer_type].get_json_description() for scorer_type in scorer_types
-            )
+            ),
         )
 
         response = self.llm_client.system_completion(
@@ -58,8 +58,6 @@ class RubricTreeGenerator:
             temperature=temperature,
             max_tokens=max_tokens,
         )
-
-        print(response)
 
         # Parse JSON response
         try:

@@ -34,7 +34,8 @@ class RubricTree:
             context: Context data for evaluation.
 
         Returns:
-            Overall score between 0 and 1. If include_reason is True, returns a tuple of the score and the reason.
+            Overall score between 0 and 1. If include_reason is True, returns a tuple of the score
+            and the reason.
         """
         self.root.compute_score(**context)
         if include_reason:
@@ -380,7 +381,7 @@ class RubricTree:
 
     def plot(
         self,
-        show_scores: bool = True,
+        show_scores: bool = False,
         layout: str = "hierarchical",
         width: int = 1600,
         height: int = 1000,

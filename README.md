@@ -1,4 +1,4 @@
-# Rubric AI
+# <img src="assets/rubric-icon.png" alt="Rubric Icon" width="100" height="100" style="vertical-align: middle;"> Rubric
 
 Structured verification with LLMs.
 

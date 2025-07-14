@@ -130,7 +130,7 @@ class RubricTreeVisualizer:
             margin=dict(b=60, l=20, r=20, t=60),
             annotations=[
                 dict(
-                    text=                    '<span style="color:#C71585;">●</span> Critical   '
+                    text='<span style="color:#C71585;">●</span> Critical   '
                     '<span style="color:#87CEEB;">●</span> Non-Critical<br>'
                     "<span style=\"font-family: 'Arial', sans-serif; "
                     'font-size: 1.5em; color: #333333">◆</span> Function Scorer',
@@ -351,7 +351,9 @@ class RubricTreeVisualizer:
                 # Add reason if available
                 if node.reason:
                     wrapped_reason = self._wrap_text(node.reason, 50)
-                    label += f"<br><span style='font-size: 10px; color: #666;'>{wrapped_reason}</span>"
+                    label += (
+                        f"<br><span style='font-size: 10px; color: #666;'>{wrapped_reason}</span>"
+                    )
 
             node_data["labels"].append(label)
 
@@ -389,9 +391,11 @@ class RubricTreeVisualizer:
             if node.scorer:
                 scorer_type = type(node.scorer).__name__
                 hover_text += f"<br>Scorer: {scorer_type}"
-                if isinstance(node.scorer, FunctionScorer) and hasattr(node.scorer, 'function_code'):
+                if isinstance(node.scorer, FunctionScorer) and hasattr(
+                    node.scorer, "function_code"
+                ):
                     # Safely access function_code with attribute check
-                    code = self._wrap_text(getattr(node.scorer, 'function_code', ''), 80)
+                    code = self._wrap_text(getattr(node.scorer, "function_code", ""), 80)
                     hover_text += f"<br><br><b>Function:</b><br><pre>{code}</pre>"
 
             if show_scores and node.score is not None:

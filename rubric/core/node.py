@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
-import warnings
 
 if TYPE_CHECKING:
     from .scorer import LeafScorer
@@ -97,15 +97,15 @@ class RubricNode:
 
     def _generate_parent_reason(self) -> str:
         """Generate a reason for a parent node based on its children's scores and reasons.
-        
+
         Args:
             context: Context data for scoring.
-            
+
         Returns:
             A generated reason explaining the parent node's score.
         """
         from ..utils.llm_client import create_llm_client
-        
+
         # Prepare information about children for LLM
         children_info = []
         for child in self.children:
@@ -114,23 +114,25 @@ class RubricNode:
                 "description": child.description,
                 "is_critical": child.is_critical,
                 "score": child.score,
-                "reason": child.reason if child.reason else "No reason available"
+                "reason": child.reason if child.reason else "No reason available",
             }
             children_info.append(child_info)
-        
+
         # Create prompt for LLM
         prompt = f"""You are evaluating a rubric criterion called "{self.name}": {self.description}
 
 This criterion has the following sub-criteria with their scores and reasons:
 
 """
-        
+
         for child_info in children_info:
             critical_label = "CRITICAL" if child_info["is_critical"] else "NON-CRITICAL"
-            prompt += f"- {child_info['name']} ({critical_label}): Score {child_info['score']:.2f}\n"
+            prompt += (
+                f"- {child_info['name']} ({critical_label}): Score {child_info['score']:.2f}\n"
+            )
             prompt += f"  Description: {child_info['description']}\n"
             prompt += f"  Reason: {child_info['reason']}\n\n"
-        
+
         prompt += f"""
 The overall score for "{self.name}" is {self._score:.2f}.
 
@@ -139,10 +141,13 @@ Rubric scoring rules:
 - Score is average of non-critical children if all critical children have score 1
 - Score is average of all children if no critical children exist or mixed performance
 
-Please provide a concise reason (1-5 sentences) explaining why this criterion received a score of {self._score:.2f}, referencing the relevant sub-criteria and their performance. Focus on the most important factors that determined the score.
-Make the the reason more natural language and human-like rather than formulaic, and avoid including numerical scores in the reasoning.
+Please provide a concise reason (1-5 sentences) explaining why this criterion received 
+a score of {self._score:.2f}, referencing the relevant sub-criteria and their performance.
+Focus on the most important factors that determined the score.
+Make the the reason more natural language and human-like rather than formulaic, 
+and avoid including numerical scores in the reasoning.
 """
-        
+
         try:
             llm_client = create_llm_client()
             reason = llm_client.simple_completion(prompt, temperature=0.3)
@@ -150,8 +155,14 @@ Make the the reason more natural language and human-like rather than formulaic, 
         except Exception as e:
             # Fallback to basic reason if LLM fails
             # Add warning that we are falling back
-            warnings.warn(f"Failed to use LLM to generate reason for parent node {self.name}, reason: {e}, using simple fallback instead")
-            return f"Score {self._score:.2f} based on performance across {len(self.children)} sub-criteria"
+            warnings.warn(
+                f"Failed to use LLM to generate reason for parent node {self.name}, reason: {e},"
+                "using simple fallback instead"
+            )
+            return (
+                f"Score {self._score:.2f} based on performance across {len(self.children)}"
+                "sub-criteria"
+            )
 
     def compute_score(self, **context) -> float:
         """Compute the score for this node.
@@ -211,7 +222,7 @@ Make the the reason more natural language and human-like rather than formulaic, 
                 self._score = sum(all_scores) / len(all_scores)
             else:
                 self._score = 0.0
-        
+
         return self._score
 
     @property

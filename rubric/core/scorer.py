@@ -7,19 +7,23 @@ from typing import Any, Dict
 
 SCORER_REGISTRY: dict[str, type[LeafScorer]] = {}
 
+
 def register(scorer_type: str):
     """Register a scorer class.
-    
+
     Args:
         scorer_type: Type of scorer.
-    
+
     Returns:
         Decorator function that registers the class.
     """
+
     def decorator(scorer_class: type[LeafScorer]) -> type[LeafScorer]:
         SCORER_REGISTRY[scorer_type] = scorer_class
         return scorer_class
+
     return decorator
+
 
 class LeafScorer(ABC):
     """Abstract base class for leaf node scorers."""
@@ -57,6 +61,7 @@ class LeafScorer(ABC):
         """Get the JSON format description for the scorer."""
         pass
 
+
 @register("function")
 class FunctionScorer(LeafScorer):
     """Scorer that uses a Python function to compute the score.
@@ -66,7 +71,7 @@ class FunctionScorer(LeafScorer):
 
     def __init__(self, function_code: str):
         """Initialize FunctionScorer with function code.
-        
+
         Args:
             function_code: Python function code that will be cleaned automatically.
         """
@@ -74,20 +79,20 @@ class FunctionScorer(LeafScorer):
 
     def _clean_function_code(self, code: str) -> str:
         """Clean function code by extracting from python code blocks if present.
-        
+
         Args:
             code: Raw function code string.
-            
+
         Returns:
             Cleaned function code string.
         """
         # Check if code is wrapped in ```python...``` block
         if code.strip().startswith("```python") and code.strip().endswith("```"):
             # Extract content between ```python and ```
-            lines = code.strip().split('\n')
+            lines = code.strip().split("\n")
             # Remove first line (```python) and last line (```)
             content_lines = lines[1:-1]
-            return '\n'.join(content_lines)
+            return "\n".join(content_lines)
         else:
             # Return as-is if not in a code block
             return code
@@ -127,7 +132,10 @@ class FunctionScorer(LeafScorer):
             reason, score = score_func()
 
             if not isinstance(reason, str) or not isinstance(score, (int, float)):
-                raise ValueError(f"Function must return a string and a number, got {type(reason)} and {type(score)}")
+                raise ValueError(
+                    f"Function must return a string and a number, got {type(reason)}"
+                    f" and {type(score)}"
+                )
 
             if not (0 <= score <= 1):
                 raise ValueError(f"Score must be between 0 and 1, got {score}")
@@ -157,9 +165,16 @@ class FunctionScorer(LeafScorer):
     @classmethod
     def get_json_description(cls) -> str:
         """Get the JSON format description for the scorer."""
-        return """```json
-        {
-            "type": "function",
-            "function_code": "```python\ndef compute_score() -> tuple[str, float]:\n    ...\n    return \"<REASON_FOR_SCORE>\", <SCORE> # The score should be between 0 and 1.\n```"
-        }
-        ```"""
+
+        return (
+            "```json\n"
+            "        {\n"
+            '            "type": "function",\n'
+            '            "function_code": "```python\\n'
+            "def compute_score() -> tuple[str, float]:\\n"
+            "    ...\\n"
+            '    return \\"<REASON_FOR_SCORE>\\", <SCORE> '
+            '# The score should be between 0 and 1.\\n```"\n'
+            "        }\n"
+            "        ```"
+        )

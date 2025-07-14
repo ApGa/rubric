@@ -154,7 +154,7 @@ class LLMClient:
         try:
             # Prepare the content list starting with the text prompt
             content: List[Any] = [{"type": "text", "text": prompt}]
-            
+
             # Process each image
             for image in images:
                 if isinstance(image, str):
@@ -169,42 +169,37 @@ class LLMClient:
                                 image_data = image_file.read()
                                 image_base64 = base64.b64encode(image_data).decode("utf-8")
                                 # Determine the image format from file extension
-                                file_ext = image.lower().split('.')[-1]
-                                if file_ext in ['jpg', 'jpeg']:
-                                    mime_type = 'image/jpeg'
-                                elif file_ext == 'png':
-                                    mime_type = 'image/png'
-                                elif file_ext == 'gif':
-                                    mime_type = 'image/gif'
-                                elif file_ext == 'webp':
-                                    mime_type = 'image/webp'
+                                file_ext = image.lower().split(".")[-1]
+                                if file_ext in ["jpg", "jpeg"]:
+                                    mime_type = "image/jpeg"
+                                elif file_ext == "png":
+                                    mime_type = "image/png"
+                                elif file_ext == "gif":
+                                    mime_type = "image/gif"
+                                elif file_ext == "webp":
+                                    mime_type = "image/webp"
                                 else:
-                                    mime_type = 'image/jpeg'  # Default fallback
+                                    mime_type = "image/jpeg"  # Default fallback
                                 image_url = f"data:{mime_type};base64,{image_base64}"
                         except FileNotFoundError:
                             raise Exception(f"Image file not found: {image}")
                         except Exception as e:
                             raise Exception(f"Error reading image file {image}: {str(e)}")
-                
+
                 elif isinstance(image, bytes):
                     # It's raw bytes, encode it as base64
                     image_base64 = base64.b64encode(image).decode("utf-8")
                     image_url = f"data:image/jpeg;base64,{image_base64}"  # Default to jpeg
-                
+
                 else:
                     raise Exception(f"Invalid image format: {type(image)}. Expected str or bytes.")
-                
+
                 # Add the image to content
-                content.append({
-                    "type": "image_url",
-                    "image_url": {
-                        "url": image_url
-                    }
-                })
-            
+                content.append({"type": "image_url", "image_url": {"url": image_url}})
+
             # Create the message with vision content
             messages = [{"role": "user", "content": content}]
-            
+
             return self.chat_completion(messages, temperature, max_tokens, **kwargs)
 
         except Exception as e:

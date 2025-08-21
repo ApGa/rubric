@@ -64,6 +64,12 @@ class LeafScorer(ABC):
         """Get the JSON format description for the scorer."""
         pass
 
+    @classmethod
+    @abstractmethod
+    def get_json_schema(cls) -> Dict[str, Any]:
+        """Return JSON Schema for configuring this scorer type."""
+        pass
+
 
 @register("function")
 class FunctionScorer(LeafScorer):
@@ -181,6 +187,18 @@ class FunctionScorer(LeafScorer):
             "        }\n"
             "        ```"
         )
+
+    @classmethod
+    def get_json_schema(cls) -> Dict[str, Any]:
+        return {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "type": {"type": "string", "enum": ["function"]},
+                "function_code": {"type": "string"},
+            },
+            "required": ["type", "function_code"],
+        }
 
 
 @register("llm")
@@ -365,3 +383,16 @@ class LLMScorer(LeafScorer):
             "        }\n"
             "        ```"
         )
+
+    @classmethod
+    def get_json_schema(cls) -> Dict[str, Any]:
+        return {
+            "type": "object",
+            "additionalProperties": False,
+            "properties": {
+                "type": {"type": "string", "enum": ["llm"]},
+                "system_prompt": {"type": "string"},
+                "user_prompt": {"type": "string"},
+            },
+            "required": ["type", "system_prompt", "user_prompt"],
+        }

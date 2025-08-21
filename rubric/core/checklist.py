@@ -137,8 +137,9 @@ class RubricChecklistFast(Rubric):
         self._last_checklist_scores = []
         self._last_parsed_response = None
 
-    def get_score(self) -> float:
-        """Get the score of the rubric.
+    @property
+    def score(self) -> float:
+        """Get the last computed score.
 
         Returns:
             The last computed score, or 0.0 if no evaluation has been performed.
@@ -161,7 +162,8 @@ class RubricChecklistFast(Rubric):
         """
         return self._last_checklist_scores.copy()
 
-    def get_reasoning(self) -> str:
+    @property
+    def reason(self) -> str:
         """Get the reasoning from the last evaluation.
 
         Returns:

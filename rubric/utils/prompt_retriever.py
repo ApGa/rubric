@@ -58,8 +58,12 @@ class PromptRetriever:
         Returns:
             True if template exists, False otherwise.
         """
-        template_path = self.prompts_dir / f"{template_name}.jinja"
-        return template_path.exists()
+        # Enforce case-sensitive check across platforms by comparing directory entries
+        target_name = f"{template_name}.jinja"
+        for entry in self.prompts_dir.iterdir():
+            if entry.is_file() and entry.name == target_name:
+                return True
+        return False
 
     def get_template(self, template_name: str) -> Template:
         """Get a Jinja template by name.
@@ -130,11 +134,12 @@ class PromptRetriever:
         Raises:
             FileNotFoundError: If template file doesn't exist.
         """
-        template_path = self.prompts_dir / f"{template_name}.jinja"
-        if not template_path.exists():
-            raise FileNotFoundError(f"Template file not found: {template_path}")
-
-        return template_path.read_text(encoding="utf-8")
+        # Enforce case-sensitive lookup: find exact filename match
+        target_name = f"{template_name}.jinja"
+        for entry in self.prompts_dir.iterdir():
+            if entry.is_file() and entry.name == target_name:
+                return entry.read_text(encoding="utf-8")
+        raise FileNotFoundError(f"Template file not found: {self.prompts_dir / target_name}")
 
     def list_prompts(self) -> dict[str, str]:
         """Get a dictionary mapping prompt names to their raw content.

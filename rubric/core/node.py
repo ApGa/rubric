@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import warnings
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 if TYPE_CHECKING:
@@ -314,4 +315,104 @@ and avoid including numerical scores in the reasoning.
         return (
             f"RubricNode(name='{self.name}', is_critical={self.is_critical}, "
             f"children={len(self.children)}, scorer={self.scorer is not None})"
+        )
+
+    # --- Directory-based persistence for human editing ---
+    def save_as_dir(self, dir_path: str | Path) -> None:
+        """Save this node (and recursively its children or scorer) to a directory.
+
+        Layout:
+        - node.json: { name, description, is_critical, metadata, type: "leaf"|"parent" }
+        - If leaf: ./scorer/ contains scorer files via its save_as_dir
+        - If parent: ./children/ contains subdirectories for each child (indexed for ordering)
+        """
+        dir_p = Path(dir_path)
+        dir_p.mkdir(parents=True, exist_ok=True)
+
+        node_cfg: Dict[str, Any] = {
+            "name": self.name,
+            "description": self.description,
+            "is_critical": self.is_critical,
+            "metadata": self.metadata,
+            "type": "leaf" if self.is_leaf else "parent",
+        }
+
+        with open(dir_p / "node.json", "w", encoding="utf-8") as f:
+            import json
+
+            json.dump(node_cfg, f, indent=2, ensure_ascii=False)
+
+        if self.is_leaf:
+            if not self.scorer:
+                raise ValueError("Leaf node must have a scorer to be saved")
+            scorer_dir = dir_p / "scorer"
+            self.scorer.save_as_dir(scorer_dir)
+        else:
+            children_dir = dir_p / "children"
+            children_dir.mkdir(exist_ok=True)
+            for idx, child in enumerate(self.children):
+                # Use index with sanitized name for stable dirs
+                safe_name = "".join(
+                    c for c in child.name if c.isalnum() or c in ("-", "_", " ")
+                ).strip()
+                safe_name = safe_name.replace(" ", "_")[:50] or f"child_{idx}"
+                child_dir = children_dir / f"{idx:02d}_{safe_name}"
+                child.save_as_dir(child_dir)
+
+    @classmethod
+    def load_from_dir(cls, dir_path: str | Path) -> "RubricNode":
+        """Load a node (and recursively its subtree) from a directory saved by save_as_dir."""
+        dir_p = Path(dir_path)
+        node_cfg_path = dir_p / "node.json"
+        if not node_cfg_path.exists():
+            raise FileNotFoundError(f"Missing node.json in {dir_p}")
+        with open(node_cfg_path, "r", encoding="utf-8") as f:
+            import json
+
+            cfg: Dict[str, Any] = json.load(f)
+
+        node_type = cfg.get("type")
+        if node_type not in {"leaf", "parent"}:
+            raise ValueError(f"Invalid node type in {node_cfg_path}: {node_type}")
+
+        name = cfg["name"]
+        description = cfg["description"]
+        is_critical = cfg.get("is_critical", False)
+        metadata = cfg.get("metadata", {})
+
+        if node_type == "leaf":
+            scorer_dir = dir_p / "scorer"
+            if not scorer_dir.exists():
+                raise FileNotFoundError(f"Leaf node scorer dir missing: {scorer_dir}")
+            from .scorer import LeafScorer
+
+            scorer = LeafScorer.load_from_dir(scorer_dir)
+            return cls(
+                name=name,
+                description=description,
+                is_critical=is_critical,
+                scorer=scorer,
+                metadata=metadata,
+            )
+
+        # parent
+        children_dir = dir_p / "children"
+        if not children_dir.exists():
+            raise FileNotFoundError(f"Parent node children dir missing: {children_dir}")
+        # Load child directories sorted by their index prefix
+        child_nodes: List[RubricNode] = []
+        for child_subdir in sorted(children_dir.iterdir()):
+            if child_subdir.is_dir():
+                child_nodes.append(cls.load_from_dir(child_subdir))
+        if not child_nodes:
+            raise ValueError(
+                f"No child nodes found in {children_dir}. "
+                "Parent nodes must have at least one child."
+            )
+        return cls(
+            name=name,
+            description=description,
+            is_critical=is_critical,
+            children=child_nodes,
+            metadata=metadata,
         )

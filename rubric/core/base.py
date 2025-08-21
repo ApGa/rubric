@@ -37,4 +37,4 @@ class Rubric(Protocol):
     @classmethod
     def generate(cls, task: str, **kwargs: Any) -> Rubric:
         """Generate a rubric for a task."""
-        cls(task, **kwargs)
+        raise NotImplementedError("This method should be implemented by concrete Rubric classes")

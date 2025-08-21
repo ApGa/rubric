@@ -114,14 +114,14 @@ class LLMClient:
                             return json.dumps(content)
                         except Exception:
                             pass
-                    return content
+                    return str(content)
 
             # Fallback for text-completion style responses
             text = getattr(first_choice, "text", None) or (
                 first_choice.get("text") if isinstance(first_choice, dict) else None
             )
             if text is not None:
-                return text
+                return str(text)
 
             raise Exception("Unsupported response format from LLM API")
 

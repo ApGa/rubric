@@ -181,7 +181,7 @@ class RubricChecklistFast(Rubric):
 
     def to_dict(self) -> dict[str, Any]:
         """Convert the rubric to a dictionary."""
-        result = {
+        result: dict[str, Any] = {
             "type": "checklist_fast",
             "task": self.task,
         }
@@ -215,3 +215,7 @@ class RubricChecklistFast(Rubric):
             instance._last_parsed_response = data.get("last_parsed_response")
 
         return instance
+
+    @classmethod
+    def generate(cls, task: str, **kwargs: Any) -> RubricChecklistFast:
+        return RubricChecklistFast(task)

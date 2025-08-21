@@ -7,7 +7,7 @@ packages = ["rubric"]
 
 [project]
 name = "ai-rubric"
-version = "0.1.0"
+version = "0.2.0"
 description = "Structured verification with LLMs."
 readme = "README.md"
 license = "MIT"
@@ -17,7 +17,7 @@ authors = [
 requires-python = ">=3.11"
 dependencies = [
     "jinja2>=3.1.0",
-    "openai>=1.0.0",
+    "litellm>=1.75.0",
     "plotly>=5.0.0",
     "networkx>=3.5.0",
 ]

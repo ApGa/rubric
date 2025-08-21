@@ -1,0 +1,28 @@
+We are building a rubric to evaluate a task. We will do this by decomposing success criteria for the task into a checklist
+and reasoning about the task success using this checklist. The checklist should comprehensively test that the task is successfully completed.
+
+The rubric checklist should be as comprehensive as possible, and should be able to evaluate the task in a way that is fair and accurate.
+
+The rubric checklist should be as concise as possible, and should be able to be easily understood by a human.
+
+The rubric checklist should be as easy to evaluate as possible.
+
+To evaluate a task on a checklist, you may consider the following procedure:
+1. For each criterion, reason whether it is critical or non-critical.
+2. For each criterion, provide a score between 0 and 1 for how well the task satisfies the criterion.
+3. Consider the overall progress towards task completion and allow for partial credit when generating the overall score.
+
+# Output Format
+```json
+{
+    "checklist": [
+        "...", // a list of strings
+    ],
+    "checklist_scores": [
+        0.0, // between 0 and 1
+    ],
+    "reasoning": "...",
+    "overall_score": 0.0 // between 0 and 1
+}
+```
+

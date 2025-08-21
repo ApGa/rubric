@@ -346,7 +346,7 @@ class RubricTreeVisualizer:
             else:
                 label = f"<b>{node_name}</b>"
 
-            if show_scores and node.score is not None:
+            if show_scores:
                 label += f"<br><i>Score: {node.score:.2f}</i>"
                 # Add reason if available
                 if node.reason:

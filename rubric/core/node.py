@@ -134,7 +134,7 @@ This criterion has the following sub-criteria with their scores and reasons:
             prompt += f"  Reason: {child_info['reason']}\n\n"
 
         prompt += f"""
-The overall score for "{self.name}" is {self._score:.2f}.
+The overall score for "{self.name}" is {self.score:.2f}.
 
 Rubric scoring rules:
 - Score is 0 if any critical child has score 0
@@ -142,7 +142,7 @@ Rubric scoring rules:
 - Score is average of all children if no critical children exist or mixed performance
 
 Please provide a concise reason (1-5 sentences) explaining why this criterion received 
-a score of {self._score:.2f}, referencing the relevant sub-criteria and their performance.
+a score of {self.score:.2f}, referencing the relevant sub-criteria and their performance.
 Focus on the most important factors that determined the score.
 Make the the reason more natural language and human-like rather than formulaic, 
 and avoid including numerical scores in the reasoning.
@@ -160,7 +160,7 @@ and avoid including numerical scores in the reasoning.
                 "using simple fallback instead"
             )
             return (
-                f"Score {self._score:.2f} based on performance across {len(self.children)}"
+                f"Score {self.score:.2f} based on performance across {len(self.children)} "
                 "sub-criteria"
             )
 

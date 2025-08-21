@@ -7,6 +7,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
+from rubric.utils.llm_client import LLMClient, create_llm_client
+from rubric.utils.prompt_retriever import PromptRetriever
+
 from .node import RubricNode
 
 
@@ -495,3 +498,30 @@ class RubricTree:
                 self._generate_text_node(
                     child, new_prefix, is_last_child, show_scores, max_width, lines
                 )
+
+    @property
+    def score(self) -> float:
+        """Get the overall score of the tree."""
+        return self.root.score
+
+    @property
+    def reason(self) -> str:
+        """Get the reason for the overall score of the tree."""
+        return self.root.reason
+
+    @classmethod
+    def generate(
+        cls,
+        task: str,
+        llm_client: LLMClient | None = None,
+        prompt_retriever: PromptRetriever | None = None,
+        **kwargs: Any,
+    ) -> RubricTree:
+        """Generate a rubric tree for a task."""
+        from ..generate.tree_generator import RubricTreeGenerator
+
+        llm_client = llm_client or create_llm_client()
+        prompt_retriever = prompt_retriever or PromptRetriever()
+
+        generator = RubricTreeGenerator(llm_client=llm_client, prompt_retriever=prompt_retriever)
+        return generator.generate_rubric_tree(task, **kwargs)

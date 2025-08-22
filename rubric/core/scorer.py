@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import json
 from abc import ABC, abstractmethod
-from typing import Any, Callable, Dict
+from pathlib import Path
+from typing import Any, Callable, Dict, cast
 
 from rubric.utils.llm_tools import LLM_MODEL_NAME
 
@@ -69,6 +70,45 @@ class LeafScorer(ABC):
     def get_json_schema(cls) -> Dict[str, Any]:
         """Return JSON Schema for configuring this scorer type."""
         pass
+
+    # --- Directory-based (human-editable) persistence API ---
+    @abstractmethod
+    def save_as_dir(self, dir_path: str | Path) -> None:
+        """Save this scorer into a directory for easy human editing.
+
+        Implementations should create the directory if missing and write a
+        minimal `scorer.json` containing at least the `type`, and any
+        additional resources as separate files (e.g., .py or .txt files).
+        """
+        pass
+
+    @classmethod
+    def load_from_dir(cls, dir_path: str | Path) -> "LeafScorer":
+        """Load a scorer from a directory produced by `save_as_dir`.
+
+        This method reads `scorer.json` to determine the scorer `type`, then
+        delegates to the registered scorer class to construct the instance.
+        """
+        dir_path = Path(dir_path)
+        config_path = dir_path / "scorer.json"
+        if not config_path.exists():
+            raise FileNotFoundError(f"Missing scorer.json in {dir_path}")
+        with open(config_path, "r", encoding="utf-8") as f:
+            config: Dict[str, Any] = json.load(f)
+
+        scorer_type = config.get("type")
+        if not scorer_type:
+            raise ValueError(f"scorer.json in {dir_path} must include a 'type' field")
+
+        if scorer_type not in SCORER_REGISTRY:
+            raise ValueError(f"Unsupported scorer type in {dir_path}: {scorer_type}")
+
+        scorer_cls = SCORER_REGISTRY[scorer_type]
+        # Prefer a directory-based loader if provided; otherwise fall back to from_dict
+        if hasattr(scorer_cls, "_load_from_dir"):
+            loader = getattr(scorer_cls, "_load_from_dir")
+            return cast(LeafScorer, loader(dir_path, config))
+        return scorer_cls.from_dict(config)
 
 
 @register("function")
@@ -199,6 +239,40 @@ class FunctionScorer(LeafScorer):
             },
             "required": ["type", "function_code"],
         }
+
+    # Directory-based persistence
+    def save_as_dir(self, dir_path: str | Path) -> None:
+        dir_path = Path(dir_path)
+        dir_path.mkdir(parents=True, exist_ok=True)
+
+        # Save function code in a separate python file for easy editing
+        code_path = dir_path / "function.py"
+        with open(code_path, "w", encoding="utf-8") as f:
+            f.write(self.function_code.rstrip() + "\n")
+
+        # Minimal config that points to the code file
+        config = {"type": "function", "function_code_file": code_path.name}
+        with open(dir_path / "scorer.json", "w", encoding="utf-8") as f:
+            json.dump(config, f, indent=2, ensure_ascii=False)
+
+    @classmethod
+    def _load_from_dir(cls, dir_path: str | Path, config: Dict[str, Any]) -> "FunctionScorer":
+        dir_p = Path(dir_path)
+        code_file = config.get("function_code_file")
+        if code_file:
+            code_path = dir_p / code_file
+            if not code_path.exists():
+                raise FileNotFoundError(f"Function code file not found: {code_path}")
+            with open(code_path, "r", encoding="utf-8") as f:
+                code = f.read()
+            return cls(function_code=code)
+        # Fallback to inline field for backward compatibility
+        if "function_code" in config:
+            return cls(function_code=config["function_code"])
+        raise ValueError(
+            f"Invalid function scorer config in {dir_path}: expected "
+            "'function_code_file' or 'function_code'"
+        )
 
 
 @register("llm")
@@ -396,3 +470,49 @@ class LLMScorer(LeafScorer):
             },
             "required": ["type", "system_prompt", "user_prompt"],
         }
+
+    # Directory-based persistence
+    def save_as_dir(self, dir_path: str | Path) -> None:
+        dir_path = Path(dir_path)
+        dir_path.mkdir(parents=True, exist_ok=True)
+
+        sys_path = dir_path / "system_prompt.txt"
+        usr_path = dir_path / "user_prompt.txt"
+        with open(sys_path, "w", encoding="utf-8") as f:
+            f.write(self.system_prompt.rstrip() + "\n")
+        with open(usr_path, "w", encoding="utf-8") as f:
+            f.write(self.user_prompt.rstrip() + "\n")
+
+        config = {
+            "type": "llm",
+            "system_prompt_file": sys_path.name,
+            "user_prompt_file": usr_path.name,
+        }
+        with open(dir_path / "scorer.json", "w", encoding="utf-8") as f:
+            json.dump(config, f, indent=2, ensure_ascii=False)
+
+    @classmethod
+    def _load_from_dir(cls, dir_path: str | Path, config: Dict[str, Any]) -> "LLMScorer":
+        dir_p = Path(dir_path)
+        sys_file = config.get("system_prompt_file")
+        usr_file = config.get("user_prompt_file")
+        if sys_file and usr_file:
+            sys_path = dir_p / sys_file
+            usr_path = dir_p / usr_file
+            if not sys_path.exists() or not usr_path.exists():
+                raise FileNotFoundError(
+                    f"Missing LLM prompt files in {dir_path}: {sys_file}, {usr_file}"
+                )
+            with open(sys_path, "r", encoding="utf-8") as f:
+                system_prompt = f.read()
+            with open(usr_path, "r", encoding="utf-8") as f:
+                user_prompt = f.read()
+            return cls(system_prompt=system_prompt, user_prompt=user_prompt)
+
+        # Fallback to inline config
+        if "system_prompt" in config and "user_prompt" in config:
+            return cls(system_prompt=config["system_prompt"], user_prompt=config["user_prompt"])
+
+        raise ValueError(
+            f"Invalid LLM scorer config in {dir_path}: expected prompt files or inline prompts"
+        )

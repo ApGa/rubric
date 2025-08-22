@@ -220,6 +220,24 @@ class RubricTree:
         with open(file_path, "w", encoding="utf-8") as f:
             json.dump(self.to_dict(), f, indent=2, ensure_ascii=False)
 
+    def save_as_dir(self, dir_path: Union[str, Path]) -> None:
+        """Save the entire tree to a directory for human-friendly editing.
+
+        Layout:
+        - metadata.json: tree-level metadata
+        - root/: directory for the root node (and recursively children)
+        """
+        dir_p = Path(dir_path)
+        dir_p.mkdir(parents=True, exist_ok=True)
+
+        # Save metadata
+        with open(dir_p / "metadata.json", "w", encoding="utf-8") as f:
+            json.dump(self.metadata, f, indent=2, ensure_ascii=False)
+
+        # Save root node recursively
+        root_dir = dir_p / "root"
+        self.root.save_as_dir(root_dir)
+
     @classmethod
     def load_from_file(cls, file_path: Union[str, Path]) -> RubricTree:
         """Load tree from a JSON file.
@@ -234,6 +252,26 @@ class RubricTree:
         with open(file_path, "r", encoding="utf-8") as f:
             data = json.load(f)
         return cls.from_dict(data)
+
+    @classmethod
+    def load_from_dir(cls, dir_path: Union[str, Path]) -> "RubricTree":
+        """Load a tree previously saved via `save_as_dir`."""
+        dir_p = Path(dir_path)
+        meta_path = dir_p / "metadata.json"
+        root_dir = dir_p / "root"
+
+        metadata: Dict[str, Any] = {}
+        if meta_path.exists():
+            with open(meta_path, "r", encoding="utf-8") as f:
+                metadata = json.load(f)
+
+        if not root_dir.exists():
+            raise FileNotFoundError(f"Missing root directory in {dir_p}")
+
+        from .node import RubricNode
+
+        root = RubricNode.load_from_dir(root_dir)
+        return cls(root=root, metadata=metadata)
 
     def validate_tree(self) -> List[str]:
         """Validate the tree structure and return any issues found.

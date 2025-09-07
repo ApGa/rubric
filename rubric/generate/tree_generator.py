@@ -2,7 +2,7 @@
 
 import json
 from dataclasses import dataclass, field
-from typing import Any, Dict
+from typing import Any, Dict, Literal
 
 from ..core import RubricTree
 from ..core.scorer import SCORER_REGISTRY
@@ -27,6 +27,8 @@ class RubricTreeGenerator:
         scorer_types: list[str] = list(SCORER_REGISTRY.keys()),
         enforce_structured_output: bool = False,
         reasoning_effort: str | None = None,
+        compute_strategy: Literal["default", "mind2web2"] = "default",
+        critical_node_weight: float = 0.7,
     ) -> RubricTree:
         """Generate a rubric tree for evaluating a task.
 
@@ -43,7 +45,11 @@ class RubricTreeGenerator:
         # Prepare context for prompt
 
         # Generate rubric structure using LLM
-        system_prompt = self.prompt_retriever.get_prompt("generate-rubric-tree-system")
+        system_prompt = self.prompt_retriever.get_prompt(
+            "generate-rubric-tree-system",
+            compute_strategy=compute_strategy,
+            critical_node_weight=critical_node_weight,
+        )
         user_prompt = self.prompt_retriever.get_prompt(
             "generate-rubric-tree-user",
             task=task,
@@ -53,6 +59,8 @@ class RubricTreeGenerator:
             scorer_formats="\n".join(
                 SCORER_REGISTRY[scorer_type].get_json_description() for scorer_type in scorer_types
             ),
+            compute_strategy=compute_strategy,
+            critical_node_weight=critical_node_weight,
         )
 
         call_kwargs: Dict[str, Any] = {}
@@ -78,6 +86,9 @@ class RubricTreeGenerator:
             )
             tree = RubricTree.from_dict(rubric_data)
             tree.metadata["task"] = task
+            tree.metadata["compute_strategy"] = compute_strategy
+            if compute_strategy == "default":
+                tree.metadata["critical_node_weight"] = critical_node_weight
             return tree
         except Exception as e:
             raise ValueError(f"Failed to generate rubric tree: {str(e)}") from e

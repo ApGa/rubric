@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Literal, Optional, Union
 
 from rubric.utils.llm_client import LLMClient, create_llm_client
 from rubric.utils.prompt_retriever import PromptRetriever
@@ -29,18 +29,32 @@ class RubricTree:
         if not isinstance(self.root, RubricNode):
             raise ValueError("Root must be a RubricNode instance")
 
-    def evaluate(self, include_reason: bool = False, **context: Any) -> tuple[float, str]:
+    def evaluate(
+        self,
+        include_reason: bool = False,
+        compute_strategy: Literal["default", "mind2web2"] = "default",
+        critical_node_weight: float = 0.7,
+        **context: Any,
+    ) -> tuple[float, str]:
         """Evaluate the entire rubric tree and return the overall score.
 
         Args:
             include_reason: Whether to include the reason for the score.
+            compute_strategy: How parent nodes aggregate child scores
+                ("default" or "mind2web2").
+            critical_node_weight: Lambda (λ) used by the default strategy when
+                mixing critical and non-critical children.
             context: Context data for evaluation.
 
         Returns:
             Overall score between 0 and 1. If include_reason is True, returns a tuple of the score
             and the reason.
         """
-        self.root.compute_score(**context)
+        self.root.compute_score(
+            compute_strategy=compute_strategy,
+            critical_node_weight=critical_node_weight,
+            **context,
+        )
         if include_reason:
             return self.root.score, self.root.reason
         else:
@@ -553,13 +567,34 @@ class RubricTree:
         task: str,
         llm_client: LLMClient | None = None,
         prompt_retriever: PromptRetriever | None = None,
+        compute_strategy: Literal["default", "mind2web2"] = "default",
+        critical_node_weight: float = 0.7,
         **kwargs: Any,
     ) -> RubricTree:
-        """Generate a rubric tree for a task."""
+        """Generate a rubric tree for a task.
+
+        Args:
+            task: Description of the task to create a rubric for.
+            llm_client: Optional LLM client instance.
+            prompt_retriever: Optional prompt retriever.
+            compute_strategy: How parent nodes aggregate child scores
+                ("default" or "mind2web2").
+            critical_node_weight: Lambda (λ) used by the default strategy when
+                mixing critical and non-critical children.
+            **kwargs: Additional arguments forwarded to the underlying generator.
+
+        Returns:
+            Generated RubricTree.
+        """
         from ..generate.tree_generator import RubricTreeGenerator
 
         llm_client = llm_client or create_llm_client()
         prompt_retriever = prompt_retriever or PromptRetriever()
 
         generator = RubricTreeGenerator(llm_client=llm_client, prompt_retriever=prompt_retriever)
-        return generator.generate_rubric_tree(task, **kwargs)
+        return generator.generate_rubric_tree(
+            task,
+            compute_strategy=compute_strategy,
+            critical_node_weight=critical_node_weight,
+            **kwargs,
+        )

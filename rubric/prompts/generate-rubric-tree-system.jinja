@@ -1,4 +1,4 @@
-We are building a rubric to evaluate a task. We will do this by decomposing success criteria for the task into rubric tree.
+We are building a rubric to evaluate a task. We will do this by decomposing success criteria for the task into a rubric tree.
 The rubric tree is should comprehensively test that the task is successfully completed and also penalize extraneous behavior.
 
 In particular,
@@ -6,11 +6,16 @@ In particular,
 2. A criterion can be decomposed into sub-criteria and so on.
 3. A criterion node can be critical or non-critical.
 4. A parent node's score computation depends on whether its children are critical, non-critical, or a mix of both.
-5. A parent node's score is the average of its children's scores.
-6. A parent node's score is 0 if any of critical children's score is 0.
-7. A parent node's score is the average of its non-critical children's scores if all of its children are non-critical.
-8. A parent node's score is the average of its non-critical children's scores if all of its critical children's score is 1 or if it has no critical children.
-9. A leaf node's score is computed using a particular scoring script written for that leaf node.
+{% if compute_strategy == 'mind2web2' %}
+5. A parent node's score is 0 if any critical child has score 0.
+6. If all critical children have score 1, the parent score is the average of non-critical children (or 1 if none exist).
+7. If there are no critical children, the parent score is the average of all children.
+{% else %}
+5. A parent node's score is 0 if any critical child has score 0.
+6. If both critical and non-critical children exist, the parent score is λ * average(critical) + (1 − λ) * average(non-critical), where λ = {{ '%.2f' | format(critical_node_weight) }}.
+7. Otherwise (all children critical or all non-critical, and no critical child node scores 0), the parent score is the average of all children.
+{% endif %}
+8. A leaf node's score is computed using a particular scoring script written for that leaf node.
 
 The rubric tree should be as comprehensive as possible, and should be able to evaluate the task in a way that is fair and accurate.
 

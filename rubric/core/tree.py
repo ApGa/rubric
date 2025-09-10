@@ -33,7 +33,7 @@ class RubricTree:
         self,
         include_reason: bool = False,
         compute_strategy: Literal["default", "mind2web2"] = "default",
-        critical_node_weight: float = 0.7,
+        non_critical_weight: float = 0.3,
         **context: Any,
     ) -> tuple[float, str]:
         """Evaluate the entire rubric tree and return the overall score.
@@ -42,7 +42,7 @@ class RubricTree:
             include_reason: Whether to include the reason for the score.
             compute_strategy: How parent nodes aggregate child scores
                 ("default" or "mind2web2").
-            critical_node_weight: Lambda (λ) used by the default strategy when
+            non_critical_weight: Lambda (λ) used by the default strategy when
                 mixing critical and non-critical children.
             context: Context data for evaluation.
 
@@ -52,7 +52,7 @@ class RubricTree:
         """
         self.root.compute_score(
             compute_strategy=compute_strategy,
-            critical_node_weight=critical_node_weight,
+            non_critical_weight=non_critical_weight,
             **context,
         )
         if include_reason:
@@ -568,7 +568,7 @@ class RubricTree:
         llm_client: LLMClient | None = None,
         prompt_retriever: PromptRetriever | None = None,
         compute_strategy: Literal["default", "mind2web2"] = "default",
-        critical_node_weight: float = 0.7,
+        non_critical_weight: float = 0.7,
         **kwargs: Any,
     ) -> RubricTree:
         """Generate a rubric tree for a task.
@@ -579,8 +579,7 @@ class RubricTree:
             prompt_retriever: Optional prompt retriever.
             compute_strategy: How parent nodes aggregate child scores
                 ("default" or "mind2web2").
-            critical_node_weight: Lambda (λ) used by the default strategy when
-                mixing critical and non-critical children.
+            non_critical_weight: λ in overall = max(0, avg(critical) − λ * (1 − avg(non-critical)))
             **kwargs: Additional arguments forwarded to the underlying generator.
 
         Returns:
@@ -592,9 +591,10 @@ class RubricTree:
         prompt_retriever = prompt_retriever or PromptRetriever()
 
         generator = RubricTreeGenerator(llm_client=llm_client, prompt_retriever=prompt_retriever)
+
         return generator.generate_rubric_tree(
             task,
             compute_strategy=compute_strategy,
-            critical_node_weight=critical_node_weight,
+            non_critical_weight=non_critical_weight,
             **kwargs,
         )

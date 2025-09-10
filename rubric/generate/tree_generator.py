@@ -28,7 +28,7 @@ class RubricTreeGenerator:
         enforce_structured_output: bool = False,
         reasoning_effort: str | None = None,
         compute_strategy: Literal["default", "mind2web2"] = "default",
-        critical_node_weight: float = 0.7,
+        non_critical_weight: float = 0.7,
     ) -> RubricTree:
         """Generate a rubric tree for evaluating a task.
 
@@ -48,7 +48,7 @@ class RubricTreeGenerator:
         system_prompt = self.prompt_retriever.get_prompt(
             "generate-rubric-tree-system",
             compute_strategy=compute_strategy,
-            critical_node_weight=critical_node_weight,
+            non_critical_weight=non_critical_weight,
         )
         user_prompt = self.prompt_retriever.get_prompt(
             "generate-rubric-tree-user",
@@ -60,7 +60,7 @@ class RubricTreeGenerator:
                 SCORER_REGISTRY[scorer_type].get_json_description() for scorer_type in scorer_types
             ),
             compute_strategy=compute_strategy,
-            critical_node_weight=critical_node_weight,
+            non_critical_weight=non_critical_weight,
         )
 
         call_kwargs: Dict[str, Any] = {}
@@ -88,7 +88,7 @@ class RubricTreeGenerator:
             tree.metadata["task"] = task
             tree.metadata["compute_strategy"] = compute_strategy
             if compute_strategy == "default":
-                tree.metadata["critical_node_weight"] = critical_node_weight
+                tree.metadata["non_critical_weight"] = non_critical_weight
             return tree
         except Exception as e:
             raise ValueError(f"Failed to generate rubric tree: {str(e)}") from e

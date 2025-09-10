@@ -11,9 +11,8 @@ In particular,
 6. If all critical children have score 1, the parent score is the average of non-critical children (or 1 if none exist).
 7. If there are no critical children, the parent score is the average of all children.
 {% else %}
-5. A parent node's score is 0 if any critical child has score 0.
-6. If both critical and non-critical children exist, the parent score is λ * average(critical) + (1 − λ) * average(non-critical), where λ = {{ '%.2f' | format(critical_node_weight) }}.
-7. Otherwise (all children critical or all non-critical, and no critical child node scores 0), the parent score is the average of all children.
+5. If both critical and non-critical children exist, the parent score is max(0, average(critical) − λ × (1 − average(non-critical))), where λ = {{ '%.2f' | format(non_critical_weight) }}.
+6. Otherwise (all children critical or all non-critical), the parent score is the average of all children.
 {% endif %}
 8. A leaf node's score is computed using a particular scoring script written for that leaf node.
 

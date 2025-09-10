@@ -7,7 +7,7 @@ packages = ["rubric"]
 
 [project]
 name = "ai-rubric"
-version = "0.2.2"
+version = "0.2.3"
 description = "Structured verification with LLMs."
 readme = "README.md"
 license = "MIT"

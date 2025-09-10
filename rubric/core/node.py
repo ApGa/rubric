@@ -30,7 +30,7 @@ class RubricNode:
     _last_compute_strategy: Optional[Literal["default", "mind2web2"]] = field(
         default=None, init=False
     )
-    _last_critical_node_weight: Optional[float] = field(default=None, init=False)
+    _last_non_critical_weight: Optional[float] = field(default=None, init=False)
 
     def __post_init__(self) -> None:
         """Validate node configuration after initialization."""
@@ -149,16 +149,14 @@ This criterion has the following sub-criteria with their scores and reasons:
             )
         elif self._last_compute_strategy == "default":
             lambda_val = (
-                f" with λ = {self._last_critical_node_weight:.2f}"
-                if isinstance(self._last_critical_node_weight, (int, float))
+                f" with λ = {self._last_non_critical_weight:.2f}"
+                if isinstance(self._last_non_critical_weight, (int, float))
                 else ""
             )
             rules_text = (
                 "Rubric scoring rules:\n"
-                "- Score is 0 if any critical child has score 0\n"
                 "- If both critical and non-critical children exist: "
-                "overall = λ * average(critical) "
-                "+ (1 − λ) * average(non-critical)"
+                "overall = max(0, average(critical) − λ * (1 − average(non-critical)))"
                 f"{lambda_val}\n"
                 "- Otherwise (all children critical or all non-critical): average of all children\n"
             )
@@ -197,16 +195,14 @@ and avoid including numerical scores in the reasoning.
                 "sub-criteria"
             )
 
-    def _compute_score_default(self, critical_node_weight: float = 0.7, **context: Any) -> float:
+    def _compute_score_default(self, non_critical_weight: float = 0.7, **context: Any) -> float:
         """Compute the score for this node using the default strategy.
         For leaf nodes, uses the scorer. For parent nodes, computes based on children:
-        - Score is 0 if any critical child has score 0
-        - Score is lambda * average of critical children scores
-          + (1 - lambda) * average of non-critical children scores
-          if children are a mix of critical and non-critical
-        - Score is average of all children if all children otherwise
+        - If children are a mix of critical and non-critical:
+          overall = max(0, avg(critical) - lambda * (1 - avg(non-critical)))
+        - Otherwise (all children critical or all non-critical): average of all children
 
-        lambda = critical_node_weight
+        lambda = non_critical_weight
         """
         # Leaf node: delegate to scorer
         if self.is_leaf:
@@ -214,7 +210,7 @@ and avoid including numerical scores in the reasoning.
                 raise ValueError("Leaf node must have a scorer")
             self._score, self._reason = self.scorer.score(**context)
             self._last_compute_strategy = "default"
-            self._last_critical_node_weight = critical_node_weight
+            self._last_non_critical_weight = non_critical_weight
             return self._score
 
         # Parent node: compute child scores first
@@ -224,7 +220,7 @@ and avoid including numerical scores in the reasoning.
 
         for child in self.children:
             child_score = child.compute_score(
-                critical_node_weight=critical_node_weight,
+                non_critical_weight=non_critical_weight,
                 compute_strategy="default",
                 **context,
             )
@@ -234,27 +230,23 @@ and avoid including numerical scores in the reasoning.
             else:
                 non_critical_scores.append(child_score)
 
-        # Rule 1: If any critical child scored 0, overall is 0
-        if critical_scores and any(score == 0 for score in critical_scores):
-            self._score = 0.0
-            return self._score
-
-        # Rule 2: If there is a mix of critical and non-critical children, use weighted average
+        # If there is a mix of critical and non-critical children, apply the new formula
         if critical_scores and non_critical_scores:
-            lambda_w = critical_node_weight
+            lambda_w = non_critical_weight
             critical_avg = sum(critical_scores) / len(critical_scores)
             non_critical_avg = sum(non_critical_scores) / len(non_critical_scores)
-            self._score = lambda_w * critical_avg + (1 - lambda_w) * non_critical_avg
+            raw_score = critical_avg - lambda_w * (1 - non_critical_avg)
+            self._score = max(0.0, raw_score)
             return self._score
 
-        # Rule 3: Otherwise (all children critical or all non-critical), average of all children
+        # Otherwise (all children critical or all non-critical), average of all children
         if all_scores:
             self._score = sum(all_scores) / len(all_scores)
         else:
             # Should not happen (parent must have children), but be safe
             self._score = 0.0
         self._last_compute_strategy = "default"
-        self._last_critical_node_weight = critical_node_weight
+        self._last_non_critical_weight = non_critical_weight
         return self._score
 
     def _compute_score_mind2web2(self, **context: Any) -> float:
@@ -271,7 +263,7 @@ and avoid including numerical scores in the reasoning.
                 raise ValueError("Leaf node must have a scorer")
             self._score, self._reason = self.scorer.score(**context)
             self._last_compute_strategy = "mind2web2"
-            self._last_critical_node_weight = None
+            self._last_non_critical_weight = None
             return self._score
 
         # Parent node scoring logic
@@ -313,12 +305,12 @@ and avoid including numerical scores in the reasoning.
                 self._score = 0.0
 
         self._last_compute_strategy = "mind2web2"
-        self._last_critical_node_weight = None
+        self._last_non_critical_weight = None
         return self._score
 
     def compute_score(
         self,
-        critical_node_weight: float = 0.7,
+        non_critical_weight: float = 0.7,
         compute_strategy: Literal["default", "mind2web2"] = "default",
         **context: Any,
     ) -> float:
@@ -331,7 +323,7 @@ and avoid including numerical scores in the reasoning.
         """
 
         if compute_strategy == "default":
-            return self._compute_score_default(critical_node_weight, **context)
+            return self._compute_score_default(non_critical_weight, **context)
         elif compute_strategy == "mind2web2":
             return self._compute_score_mind2web2(**context)
         else:

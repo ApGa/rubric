@@ -366,6 +366,9 @@ and avoid including numerical scores in the reasoning.
         if self._score is not None:
             result["score"] = self._score
 
+        if self._reason is not None:
+            result["reason"] = self._reason
+
         return result
 
     @classmethod
@@ -404,6 +407,12 @@ and avoid including numerical scores in the reasoning.
         else:
             raise ValueError(f"Node '{data['name']}' must have either children or scorer")
 
+        if "score" in data:
+            node._score = data["score"]
+
+        if "reason" in data:
+            node._reason = data["reason"]
+        
         return node
 
     def __str__(self) -> str:

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import inspect
 import json
 from abc import ABC, abstractmethod
 from pathlib import Path
@@ -43,6 +44,10 @@ class LeafScorer(ABC):
             Tuple containing the reason for the score and the score between 0 and 1.
         """
         pass
+
+    async def ascore(self, **context: Any) -> tuple[float, str]:
+        """Compute score for the leaf node asynchronously."""
+        return self.score(**context)
 
     @abstractmethod
     def to_dict(self) -> Dict[str, Any]:
@@ -179,6 +184,32 @@ class FunctionScorer(LeafScorer):
 
             # Call the function
             reason, score = score_func()
+
+            if not isinstance(reason, str) or not isinstance(score, (int, float)):
+                raise ValueError(
+                    f"Function must return a string and a number, got {type(reason)}"
+                    f" and {type(score)}"
+                )
+
+            if not (0 <= score <= 1):
+                raise ValueError(f"Score must be between 0 and 1, got {score}")
+
+            return score, reason
+
+        except Exception as e:
+            raise ValueError(f"Function scoring failed: {str(e)}") from e
+
+    async def ascore(self, **global_context: Any) -> tuple[float, str]:
+        """Execute the function to compute the score asynchronously."""
+        try:
+            namespace: dict[str, Any] = {}
+            exec(self.function_code, global_context, namespace)
+            score_func = namespace["compute_score"]
+            result = score_func()
+            if inspect.isawaitable(result):
+                reason, score = await result
+            else:
+                reason, score = result
 
             if not isinstance(reason, str) or not isinstance(score, (int, float)):
                 raise ValueError(
@@ -415,6 +446,109 @@ class LLMScorer(LeafScorer):
                 )
 
                 # Validate score range
+                if not (0 <= score <= 1):
+                    raise ValueError(f"Score must be between 0 and 1, got {score}")
+
+                return score, reason
+
+        except Exception as e:
+            raise ValueError(f"LLM scoring failed: {str(e)}") from e
+
+    async def ascore(self, **context: Any) -> tuple[float, str]:
+        """Use LLM to compute the score asynchronously."""
+        try:
+            from ..utils.llm_client import create_llm_client
+
+            formatted_system_prompt = (
+                self.system_prompt.format(**context) if context else self.system_prompt
+            )
+            formatted_user_prompt = (
+                self.user_prompt.format(**context) if context else self.user_prompt
+            )
+
+            llm_client = create_llm_client(model=LLM_MODEL_NAME)
+            response = await llm_client.asystem_completion(
+                system_prompt=formatted_system_prompt,
+                user_prompt=formatted_user_prompt,
+                temperature=0.3,
+            )
+
+            try:
+                import re
+
+                json_match = re.search(
+                    r"```json\s*(.*?)\s*```", response, re.DOTALL | re.IGNORECASE
+                )
+
+                if json_match:
+                    json_str = json_match.group(1).strip()
+                else:
+                    code_match = re.search(r"```\s*(.*?)\s*```", response, re.DOTALL)
+                    if code_match:
+                        json_str = code_match.group(1).strip()
+                    else:
+                        json_str = response.strip()
+
+                parsed_response = json.loads(json_str)
+
+                if (
+                    isinstance(parsed_response, dict)
+                    and "score" in parsed_response
+                    and "reason" in parsed_response
+                ):
+                    score = float(parsed_response["score"])
+                    reason = str(parsed_response["reason"])
+
+                    if not (0 <= score <= 1):
+                        raise ValueError(f"Score must be between 0 and 1, got {score}")
+
+                    return score, reason
+                else:
+                    raise ValueError("JSON response missing required 'score' or 'reason' fields")
+
+            except (json.JSONDecodeError, KeyError, ValueError):
+                lines = response.strip().split("\n")
+                score = None
+                reason_parts = []
+
+                for line in lines:
+                    line = line.strip()
+                    if line.lower().startswith("score:"):
+                        try:
+                            score_str = line.split(":", 1)[1].strip()
+                            score = float(score_str)
+                        except (ValueError, IndexError):
+                            continue
+                    elif line.lower().startswith("reason:"):
+                        reason_parts.append(line.split(":", 1)[1].strip())
+                    elif line and not line.lower().startswith("score:"):
+                        reason_parts.append(line)
+
+                if score is None:
+                    import re
+
+                    numbers = re.findall(r"\b0\.\d+\b|\b1\.0+\b|\b[01]\b", response)
+                    if numbers:
+                        try:
+                            score = float(numbers[-1])
+                            reason = response.rsplit(str(score), 1)[0].strip()
+                            if not reason:
+                                reason = "LLM provided score without detailed reasoning"
+                        except ValueError:
+                            pass
+
+                if score is None:
+                    raise ValueError(
+                        f"Could not parse score from LLM response. Expected JSON format "
+                        f'{{"reason": "...", "score": X.XX}} or legacy format. Got: {response}'
+                    )
+
+                reason = (
+                    " ".join(reason_parts)
+                    if reason_parts
+                    else "LLM provided score without detailed reasoning"
+                )
+
                 if not (0 <= score <= 1):
                     raise ValueError(f"Score must be between 0 and 1, got {score}")
 

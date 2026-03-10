@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Protocol, runtime_checkable
+from typing import Any, Awaitable, Protocol, runtime_checkable
 
 
 @runtime_checkable
@@ -9,6 +9,12 @@ class Rubric(Protocol):
 
     def evaluate(self, include_reason: bool = False, **context: Any) -> tuple[float, str]:
         """Evaluate the rubric."""
+        ...
+
+    def aevaluate(
+        self, include_reason: bool = False, **context: Any
+    ) -> Awaitable[tuple[float, str]]:
+        """Evaluate the rubric asynchronously."""
         ...
 
     def reset_scores(self) -> None:

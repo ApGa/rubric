@@ -88,6 +88,55 @@ class RubricChecklistFast(Rubric):
         except Exception as e:
             raise ValueError(f"Checklist evaluation failed: {str(e)}") from e
 
+    async def aevaluate(
+        self, include_reason: bool = False, temperature: float = 1.0, **context: Any
+    ) -> tuple[float, str]:
+        """Evaluate the task asynchronously using an LLM-generated checklist."""
+        try:
+            system_prompt = self.prompt_retriever.get_prompt(
+                "generate-rubric-checklist-fast-system"
+            )
+
+            prompt_context = {"task": self.task}
+            prompt_context.update(context)
+
+            user_prompt = self.prompt_retriever.get_prompt(
+                "generate-rubric-checklist-fast-user", **prompt_context
+            )
+
+            llm_client = create_llm_client(model=LLM_MODEL_NAME)
+            response = await llm_client.asystem_completion(
+                system_prompt=system_prompt,
+                user_prompt=user_prompt,
+                temperature=temperature,
+            )
+
+            parsed_response = self._parse_response(response)
+
+            overall_score = parsed_response.get("overall_score", 0.0)
+            reasoning = parsed_response.get("reasoning", "No reasoning provided")
+            checklist = parsed_response.get("checklist", [])
+            checklist_scores = parsed_response.get("checklist_scores", [])
+
+            self._last_score = float(overall_score)
+            self._last_reason = reasoning
+            self._last_checklist = list(checklist) if checklist else []
+            self._last_checklist_scores = (
+                [float(score) for score in checklist_scores] if checklist_scores else []
+            )
+            self._last_parsed_response = parsed_response
+
+            if not (0 <= self._last_score <= 1):
+                raise ValueError(f"Score must be between 0 and 1, got {self._last_score}")
+
+            if include_reason:
+                return self._last_score, self._last_reason
+            else:
+                return self._last_score, ""
+
+        except Exception as e:
+            raise ValueError(f"Checklist evaluation failed: {str(e)}") from e
+
     def _parse_response(self, response: str) -> dict[str, Any]:
         """Parse the LLM response to extract structured data.
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import warnings
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -195,6 +196,89 @@ and avoid including numerical scores in the reasoning.
                 "sub-criteria"
             )
 
+    async def _agenerate_parent_reason(self) -> str:
+        """Generate a reason for a parent node asynchronously."""
+        from ..utils.llm_client import create_llm_client
+
+        child_reasons = await asyncio.gather(*(child.aget_reason() for child in self.children))
+        children_info = []
+        for child, child_reason in zip(self.children, child_reasons):
+            child_info = {
+                "name": child.name,
+                "description": child.description,
+                "is_critical": child.is_critical,
+                "score": child.score,
+                "reason": child_reason if child_reason else "No reason available",
+            }
+            children_info.append(child_info)
+
+        prompt = f"""You are evaluating a rubric criterion called "{self.name}": {self.description}
+
+This criterion has the following sub-criteria with their scores and reasons:
+
+"""
+
+        for child_info in children_info:
+            critical_label = "CRITICAL" if child_info["is_critical"] else "NON-CRITICAL"
+            prompt += (
+                f"- {child_info['name']} ({critical_label}): Score {child_info['score']:.2f}\n"
+            )
+            prompt += f"  Description: {child_info['description']}\n"
+            prompt += f"  Reason: {child_info['reason']}\n\n"
+
+        if self._last_compute_strategy == "mind2web2":
+            rules_text = (
+                "Rubric scoring rules:\n"
+                "- Score is 0 if any critical child has score 0\n"
+                "- Score is average of non-critical children if all critical children "
+                "have score 1\n"
+                "- Score is average of all children if no critical children exist\n"
+            )
+        elif self._last_compute_strategy == "default":
+            lambda_val = (
+                f" with λ = {self._last_non_critical_weight:.2f}"
+                if isinstance(self._last_non_critical_weight, (int, float))
+                else ""
+            )
+            rules_text = (
+                "Rubric scoring rules:\n"
+                "- If both critical and non-critical children exist: "
+                "overall = max(0, average(critical) − λ * (1 − average(non-critical)))"
+                f"{lambda_val}\n"
+                "- Otherwise (all children critical or all non-critical): average of all children\n"
+            )
+        else:
+            rules_text = (
+                "Rubric scoring rules: based on child performance, considering criticality and "
+                "averages.\n"
+            )
+
+        prompt += f"""
+The overall score for "{self.name}" is {self.score:.2f}.
+
+{rules_text}
+
+Please provide a concise reason (1-5 sentences) explaining why this criterion received 
+a score of {self.score:.2f}, referencing the relevant sub-criteria and their performance.
+Focus on the most important factors that determined the score.
+Make the the reason more natural language and human-like rather than formulaic, 
+and avoid including numerical scores in the reasoning.
+"""
+
+        try:
+            llm_client = create_llm_client()
+            reason = await llm_client.asimple_completion(prompt, temperature=0.3)
+            return reason.strip()
+        except Exception as e:
+            warnings.warn(
+                f"Failed to use LLM to generate reason for parent node {self.name}, reason: {e},"
+                "using simple fallback instead"
+            )
+            return (
+                f"Score {self.score:.2f} based on performance across {len(self.children)} "
+                "sub-criteria"
+            )
+
     def _compute_score_default(self, non_critical_weight: float = 0.7, **context: Any) -> float:
         """Compute the score for this node using the default strategy.
         For leaf nodes, uses the scorer. For parent nodes, computes based on children:
@@ -237,6 +321,8 @@ and avoid including numerical scores in the reasoning.
             non_critical_avg = sum(non_critical_scores) / len(non_critical_scores)
             raw_score = critical_avg - lambda_w * (1 - non_critical_avg)
             self._score = max(0.0, raw_score)
+            self._last_compute_strategy = "default"
+            self._last_non_critical_weight = non_critical_weight
             return self._score
 
         # Otherwise (all children critical or all non-critical), average of all children
@@ -244,6 +330,57 @@ and avoid including numerical scores in the reasoning.
             self._score = sum(all_scores) / len(all_scores)
         else:
             # Should not happen (parent must have children), but be safe
+            self._score = 0.0
+        self._last_compute_strategy = "default"
+        self._last_non_critical_weight = non_critical_weight
+        return self._score
+
+    async def _acompute_score_default(
+        self, non_critical_weight: float = 0.7, **context: Any
+    ) -> float:
+        """Compute the score for this node asynchronously using the default strategy."""
+        if self.is_leaf:
+            if not self.scorer:
+                raise ValueError("Leaf node must have a scorer")
+            self._score, self._reason = await self.scorer.ascore(**context)
+            self._last_compute_strategy = "default"
+            self._last_non_critical_weight = non_critical_weight
+            return self._score
+
+        child_scores = await asyncio.gather(
+            *[
+                child.acompute_score(
+                    non_critical_weight=non_critical_weight,
+                    compute_strategy="default",
+                    **context,
+                )
+                for child in self.children
+            ]
+        )
+
+        critical_scores: List[float] = []
+        non_critical_scores: List[float] = []
+        all_scores = list(child_scores)
+
+        for child, child_score in zip(self.children, child_scores):
+            if child.is_critical:
+                critical_scores.append(child_score)
+            else:
+                non_critical_scores.append(child_score)
+
+        if critical_scores and non_critical_scores:
+            lambda_w = non_critical_weight
+            critical_avg = sum(critical_scores) / len(critical_scores)
+            non_critical_avg = sum(non_critical_scores) / len(non_critical_scores)
+            raw_score = critical_avg - lambda_w * (1 - non_critical_avg)
+            self._score = max(0.0, raw_score)
+            self._last_compute_strategy = "default"
+            self._last_non_critical_weight = non_critical_weight
+            return self._score
+
+        if all_scores:
+            self._score = sum(all_scores) / len(all_scores)
+        else:
             self._score = 0.0
         self._last_compute_strategy = "default"
         self._last_non_critical_weight = non_critical_weight
@@ -308,6 +445,54 @@ and avoid including numerical scores in the reasoning.
         self._last_non_critical_weight = None
         return self._score
 
+    async def _acompute_score_mind2web2(self, **context: Any) -> float:
+        """Compute the score for this node asynchronously using the Mind2Web2 strategy."""
+        if self.is_leaf:
+            if not self.scorer:
+                raise ValueError("Leaf node must have a scorer")
+            self._score, self._reason = await self.scorer.ascore(**context)
+            self._last_compute_strategy = "mind2web2"
+            self._last_non_critical_weight = None
+            return self._score
+
+        critical_children = self.get_critical_children()
+        child_scores = await asyncio.gather(
+            *[
+                child.acompute_score(compute_strategy="mind2web2", **context)
+                for child in self.children
+            ]
+        )
+
+        all_scores: List[float] = list(child_scores)
+        critical_scores = []
+        non_critical_scores = []
+
+        for child, score in zip(self.children, child_scores):
+            if child.is_critical:
+                critical_scores.append(score)
+            else:
+                non_critical_scores.append(score)
+
+        if critical_children:
+            if any(score == 0 for score in critical_scores):
+                self._score = 0.0
+            elif all(score == 1 for score in critical_scores):
+                if non_critical_scores:
+                    self._score = sum(non_critical_scores) / len(non_critical_scores)
+                else:
+                    self._score = 1.0
+            else:
+                self._score = sum(all_scores) / len(all_scores)
+        else:
+            if all_scores:
+                self._score = sum(all_scores) / len(all_scores)
+            else:
+                self._score = 0.0
+
+        self._last_compute_strategy = "mind2web2"
+        self._last_non_critical_weight = None
+        return self._score
+
     def compute_score(
         self,
         non_critical_weight: float = 0.7,
@@ -329,6 +514,20 @@ and avoid including numerical scores in the reasoning.
         else:
             raise ValueError(f"Invalid compute strategy: {compute_strategy}")
 
+    async def acompute_score(
+        self,
+        non_critical_weight: float = 0.7,
+        compute_strategy: Literal["default", "mind2web2"] = "default",
+        **context: Any,
+    ) -> float:
+        """Compute the score for this node asynchronously."""
+        if compute_strategy == "default":
+            return await self._acompute_score_default(non_critical_weight, **context)
+        elif compute_strategy == "mind2web2":
+            return await self._acompute_score_mind2web2(**context)
+        else:
+            raise ValueError(f"Invalid compute strategy: {compute_strategy}")
+
     @property
     def score(self) -> float:
         """Get the last computed score for this node."""
@@ -340,6 +539,12 @@ and avoid including numerical scores in the reasoning.
         """Get the reason for the last computed score for this node."""
         if self._reason is None and not self.is_leaf:
             self._reason = self._generate_parent_reason()
+        return self._reason if self._reason is not None else "No reason available yet"
+
+    async def aget_reason(self) -> str:
+        """Get the reason for the last computed score for this node asynchronously."""
+        if self._reason is None and not self.is_leaf:
+            self._reason = await self._agenerate_parent_reason()
         return self._reason if self._reason is not None else "No reason available yet"
 
     def reset_scores(self) -> None:
@@ -412,7 +617,7 @@ and avoid including numerical scores in the reasoning.
 
         if "reason" in data:
             node._reason = data["reason"]
-        
+
         return node
 
     def __str__(self) -> str:

@@ -60,6 +60,24 @@ class RubricTree:
         else:
             return (self.root.score, "")
 
+    async def aevaluate(
+        self,
+        include_reason: bool = False,
+        compute_strategy: Literal["default", "mind2web2"] = "default",
+        non_critical_weight: float = 0.3,
+        **context: Any,
+    ) -> tuple[float, str]:
+        """Evaluate the entire rubric tree asynchronously."""
+        await self.root.acompute_score(
+            compute_strategy=compute_strategy,
+            non_critical_weight=non_critical_weight,
+            **context,
+        )
+        if include_reason:
+            return self.root.score, await self.root.aget_reason()
+        else:
+            return (self.root.score, "")
+
     def reset_scores(self) -> None:
         """Reset all scores in the tree."""
         self.root.reset_scores()

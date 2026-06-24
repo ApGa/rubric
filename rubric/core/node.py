@@ -506,6 +506,7 @@ and avoid including numerical scores in the reasoning.
         Returns:
             Tuple containing the reason for the score and the score between 0 and 1.
         """
+        self._reason = None
 
         if compute_strategy == "default":
             return self._compute_score_default(non_critical_weight, **context)
@@ -521,6 +522,8 @@ and avoid including numerical scores in the reasoning.
         **context: Any,
     ) -> float:
         """Compute the score for this node asynchronously."""
+        self._reason = None
+
         if compute_strategy == "default":
             return await self._acompute_score_default(non_critical_weight, **context)
         elif compute_strategy == "mind2web2":

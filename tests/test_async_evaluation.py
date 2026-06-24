@@ -65,7 +65,7 @@ def test_rubric_tree_aevaluate_uses_async_llm(monkeypatch: pytest.MonkeyPatch) -
         description="Leaf criterion",
         scorer=LLMScorer(
             system_prompt="You are evaluating {subject}.",
-            user_prompt='Return JSON for {subject}: {"reason": "...", "score": 0.0}',
+            user_prompt='Return JSON for {subject}: {{"reason": "...", "score": 0.0}}',
         ),
     )
     tree = RubricTree(
@@ -94,10 +94,20 @@ def test_checklist_aevaluate_uses_async_llm(monkeypatch: pytest.MonkeyPatch) -> 
         "rubric.utils.llm_client.create_llm_client",
         lambda *args, **kwargs: fake_client,
     )
+    monkeypatch.setattr(
+        "rubric.core.checklist.create_llm_client",
+        lambda *args, **kwargs: fake_client,
+    )
 
     rubric = RubricChecklistFast(task="Verify the generated summary")
 
-    score, reason = asyncio.run(rubric.aevaluate(include_reason=True, answer="A candidate"))
+    score, reason = asyncio.run(
+        rubric.aevaluate(
+            include_reason=True,
+            context="Evaluate this candidate answer.",
+            answer="A candidate",
+        )
+    )
 
     assert score == 0.75
     assert reason == "Mostly correct with one weaker area."
